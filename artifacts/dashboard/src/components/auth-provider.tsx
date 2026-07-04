@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { getStoredSecret, setAdminSecret as setApiSecret, clearAdminSecret as clearApiSecret } from '@/lib/api';
 
 type AuthContextType = {
@@ -21,6 +21,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearApiSecret();
     setIsAuth(false);
   };
+
+  // Auto-logout whenever the API rejects our stored credentials with a 401
+  useEffect(() => {
+    const handler = () => {
+      if (getStoredSecret()) logout();
+    };
+    window.addEventListener('auth:session-expired', handler);
+    return () => window.removeEventListener('auth:session-expired', handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <AuthContext.Provider value={{ isAuth, login, logout }}>
