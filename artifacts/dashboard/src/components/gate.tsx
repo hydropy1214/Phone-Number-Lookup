@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Terminal } from 'lucide-react';
-import { getApiBaseUrl } from '@/lib/api';
+import { getApiBaseUrl, setApiKey } from '@/lib/api';
 
 interface SetupInfo {
   admin_secret: string | null;
@@ -15,12 +15,13 @@ interface SetupInfo {
 export function Gate({ children }: { children: React.ReactNode }) {
   const { isAuth, login } = useAuth();
   const [inputVal, setInputVal] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isAuth);
   const [setupInfo, setSetupInfo] = useState<SetupInfo | null>(null);
   const [fetchError, setFetchError] = useState(false);
 
+  // Always refresh credentials from the server on mount, even if already authenticated.
+  // This keeps the stored API key and admin secret in sync after server restarts.
   useEffect(() => {
-    if (isAuth) return;
     const base = getApiBaseUrl();
     fetch(`${base}/setup`)
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
@@ -29,10 +30,16 @@ export function Gate({ children }: { children: React.ReactNode }) {
         if (info.admin_secret) {
           login(info.admin_secret);
         }
+        if (info.default_api_key) {
+          setApiKey(info.default_api_key);
+        }
       })
-      .catch(() => setFetchError(true))
+      .catch(() => {
+        if (!isAuth) setFetchError(true);
+      })
       .finally(() => setLoading(false));
-  }, [isAuth]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (isAuth) return <>{children}</>;
 

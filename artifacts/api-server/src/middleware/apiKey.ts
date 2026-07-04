@@ -28,19 +28,39 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
   next();
 }
 
+/**
+ * Admin auth: accepts EITHER the X-Admin-Secret header (matches ADMIN_API_SECRET env var)
+ * OR a valid X-API-Key from the database. This lets the dashboard use the auto-generated
+ * API key for admin operations without needing a separate secret workflow.
+ */
 export async function requireAdminSecret(req: Request, res: Response, next: NextFunction) {
-  const provided = req.header("x-admin-secret");
-  const expected = process.env.ADMIN_API_SECRET;
+  // ── Path 1: Admin secret header ──────────────────────────────────────────
+  const providedSecret = req.header("x-admin-secret");
+  const expectedSecret = process.env.ADMIN_API_SECRET;
 
-  if (!expected) {
-    res.status(500).json({ error: "ADMIN_API_SECRET is not configured on the server" });
+  if (providedSecret && expectedSecret && providedSecret === expectedSecret) {
+    next();
     return;
   }
 
-  if (!provided || provided !== expected) {
-    res.status(401).json({ error: "Invalid admin secret" });
-    return;
+  // ── Path 2: Valid API key (any active key grants admin access in self-hosted mode)
+  const apiKey = req.header("x-api-key");
+  if (apiKey) {
+    const [record] = await db
+      .select()
+      .from(apiKeysTable)
+      .where(eq(apiKeysTable.key, apiKey))
+      .limit(1);
+
+    if (record && record.active) {
+      next();
+      return;
+    }
   }
 
-  next();
+  // ── Both failed ───────────────────────────────────────────────────────────
+  res.status(401).json({
+    error: "Invalid admin secret",
+    hint: "Send X-Admin-Secret or a valid X-API-Key header",
+  });
 }
