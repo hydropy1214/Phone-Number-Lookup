@@ -1,0 +1,337 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: phone
+    description: Offline phone number intelligence lookups
+  - name: admin
+    description: API key administration
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /phone/lookup:
+    get:
+      operationId: phoneLookup
+      tags: [phone]
+      summary: Look up phone number intelligence
+      description: >
+        Runs an offline phone number intelligence lookup (line type, carrier,
+        geolocation, fraud score, spam/DNC/reassigned checks). Requires an
+        API key in the X-API-Key header.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: number
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "+14155552671"
+          description: Phone number in international format
+      responses:
+        "200":
+          description: Lookup result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhoneLookupResult"
+        "400":
+          description: Missing or invalid number parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /admin/keys:
+    post:
+      operationId: createApiKey
+      tags: [admin]
+      summary: Create a new API key
+      description: Requires the X-Admin-Secret header to match the server's ADMIN_API_SECRET.
+      security:
+        - AdminSecretAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateApiKeyRequest"
+      responses:
+        "201":
+          description: Created API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyRecord"
+        "401":
+          description: Invalid admin secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      operationId: listApiKeys
+      tags: [admin]
+      summary: List all API keys
+      description: Requires the X-Admin-Secret header to match the server's ADMIN_API_SECRET.
+      security:
+        - AdminSecretAuth: []
+      responses:
+        "200":
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApiKeyRecord"
+        "401":
+          description: Invalid admin secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /admin/keys/{id}/revoke:
+    post:
+      operationId: revokeApiKey
+      tags: [admin]
+      summary: Revoke an API key
+      description: Requires the X-Admin-Secret header to match the server's ADMIN_API_SECRET.
+      security:
+        - AdminSecretAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Revoked API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyRecord"
+        "404":
+          description: API key not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid admin secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    AdminSecretAuth:
+      type: apiKey
+      in: header
+      name: X-Admin-Secret
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    PhoneLookupResult:
+      type: object
+      description: >
+        Phone intelligence result. Fields sourced from the phonenumbers library
+        (valid, line_type, voip, carrier, country, city, region, timezones) are
+        authoritative. Fields sourced from community datasets (spam, recent_abuse,
+        spammer, dnc) reflect what has been reported. Fields requiring live
+        carrier/breach/HLR access (name, associated_emails, user_activity,
+        leaked_online, reassigned) are null — never fabricated.
+      properties:
+        # --- Authoritative (phonenumbers library) ---
+        valid:
+          type: boolean
+          description: Whether the number is a valid, dialable number per ITU standards
+        line_type:
+          type: string
+          description: "Fixed Line, Mobile, VoIP, Toll-Free, Premium Rate, etc."
+        voip:
+          type: boolean
+          description: Whether the number is a VoIP line
+        carrier:
+          type: string
+          description: >
+            Original network carrier name (authoritative for most international numbers;
+            may be empty for US mobile numbers due to number portability)
+        country:
+          type: string
+          description: ISO 3166-1 alpha-2 country code
+        city:
+          type: string
+          description: City or geographic area (from phonenumbers geocoder)
+        region:
+          type: string
+          description: State, province, or region (from phonenumbers geocoder)
+        timezones:
+          type: array
+          items:
+            type: string
+          description: IANA timezone identifiers for this number's geographic area
+        # --- Community / heuristic ---
+        active:
+          type: boolean
+          description: >
+            Best-effort heuristic — true if number is valid and not flagged in any
+            community abuse dataset. NOT a live reachability check.
+        fraud_score:
+          type: number
+          description: Risk score 0–100 computed from community data and pattern analysis
+        fraud_reasons:
+          type: array
+          items:
+            type: string
+          description: Reasons contributing to the fraud score
+        recent_abuse:
+          type: boolean
+          description: True if number appears in community abuse/spam datasets
+        spammer:
+          type: boolean
+          description: True if number appears in community spam datasets
+        spam:
+          type: boolean
+          description: True if number appears in community spam datasets
+        prepaid:
+          type: boolean
+          description: Heuristic — true if carrier name matches known prepaid brands
+        risky:
+          type: boolean
+          description: True if fraud_score >= 75 or flagged in community datasets
+        dnc:
+          type: boolean
+          description: >
+            Community-proxy DNC flag — true if number appears in abuse reports
+            (not the official FTC Do Not Call Registry, which requires subscription)
+        dnc_source:
+          type: string
+          description: Source of DNC determination
+        pattern_flags:
+          type: array
+          items:
+            type: string
+          description: Structural pattern risk indicators (e.g. 555-0xxx, sequential digits, high-risk area code)
+        # --- Unavailable offline (always null) ---
+        name:
+          type: string
+          nullable: true
+          description: "Subscriber name — null: requires CNAM carrier lookup"
+        associated_emails:
+          type: array
+          items:
+            type: string
+          description: "Associated email addresses — empty: requires data enrichment service"
+        user_activity:
+          type: string
+          nullable: true
+          description: "Activity level — null: requires live HLR/SS7 network query"
+        leaked_online:
+          type: boolean
+          nullable: true
+          description: "Whether number appears in breach databases — null: requires breach DB"
+        reassigned:
+          type: boolean
+          nullable: true
+          description: "Whether number was reassigned — null: requires FCC RND subscription"
+      required:
+        - valid
+        - line_type
+        - voip
+        - carrier
+        - country
+        - city
+        - region
+        - timezones
+        - active
+        - fraud_score
+        - fraud_reasons
+        - recent_abuse
+        - spammer
+        - spam
+        - prepaid
+        - risky
+        - dnc
+        - dnc_source
+        - pattern_flags
+        - name
+        - associated_emails
+        - user_activity
+        - leaked_online
+        - reassigned
+    CreateApiKeyRequest:
+      type: object
+      properties:
+        label:
+          type: string
+          description: A human-readable label for who/what this key is for
+      required:
+        - label
+    ApiKeyRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        key:
+          type: string
+        label:
+          type: string
+        active:
+          type: boolean
+        requestCount:
+          type: integer
+        createdAt:
+          type: string
+        lastUsedAt:
+          type: string
+          nullable: true
+      required:
+        - id
+        - key
+        - label
+        - active
+        - requestCount
+        - createdAt
+

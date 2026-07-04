@@ -1,0 +1,48 @@
+import { Link, useLocation } from 'wouter';
+import { useAuth } from '@/components/auth-provider';
+import { Activity, Key, Search, Lock, Terminal } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+
+export function Layout({ children }: { children: React.ReactNode }) {
+  const [location] = useLocation();
+  const { logout } = useAuth();
+
+  const nav = [
+    { href: '/', label: 'DASHBOARD', icon: Activity },
+    { href: '/keys', label: 'API_KEYS', icon: Key },
+    { href: '/lookup', label: 'LOOKUP_TOOL', icon: Search },
+  ];
+
+  return (
+    <div className="min-h-[100dvh] flex flex-col md:flex-row bg-background text-foreground relative z-10">
+      <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-border bg-card/50 flex flex-col backdrop-blur-sm">
+        <div className="p-4 md:p-6 border-b border-border flex items-center gap-3 text-primary">
+          <Terminal className="w-6 h-6" />
+          <span className="font-mono font-bold tracking-widest text-lg">SYS_CTRL</span>
+        </div>
+        <nav className="flex-1 p-4 space-y-2">
+          {nav.map(item => {
+            const active = location === item.href;
+            return (
+              <Link key={item.href} href={item.href} className={`flex items-center gap-3 px-4 py-3 rounded-md font-mono text-sm transition-colors ${active ? 'bg-primary/10 text-primary border border-primary/20' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}>
+                <item.icon className="w-4 h-4" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="p-4 border-t border-border mt-auto">
+          <Button variant="outline" className="w-full justify-start gap-3 font-mono text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30" onClick={logout}>
+            <Lock className="w-4 h-4" />
+            LOCK_SYSTEM
+          </Button>
+        </div>
+      </aside>
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto min-h-0">
+        <div className="max-w-6xl mx-auto space-y-8">
+          {children}
+        </div>
+      </main>
+    </div>
+  );
+}
