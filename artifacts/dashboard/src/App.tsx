@@ -6,12 +6,8 @@ import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { AuthProvider } from '@/components/auth-provider';
 import { Gate } from '@/components/gate';
 import { Layout } from '@/components/layout';
-import { Dashboard } from '@/pages/dashboard';
-import { Keys } from '@/pages/keys';
 import { Lookup } from '@/pages/lookup';
-import { Batch } from '@/pages/batch';
-import { Sources } from '@/pages/sources';
-import { Docs } from '@/pages/docs';
+import { Keys } from '@/pages/keys';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,12 +21,8 @@ function Router() {
   return (
     <Layout>
       <Switch>
-        <Route path="/" component={Dashboard} />
+        <Route path="/" component={Lookup} />
         <Route path="/keys" component={Keys} />
-        <Route path="/lookup" component={Lookup} />
-        <Route path="/batch" component={Batch} />
-        <Route path="/sources" component={Sources} />
-        <Route path="/docs" component={Docs} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'wouter';
 import { useAuth } from '@/components/auth-provider';
-import { Activity, Key, Search, Lock, Terminal, Layers, Database, BookOpen } from 'lucide-react';
+import { Key, Search, Lock, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -8,17 +8,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { logout } = useAuth();
 
   const nav = [
-    { href: '/', label: 'DASHBOARD', icon: Activity },
-    { href: '/keys', label: 'API_KEYS', icon: Key },
-    { href: '/lookup', label: 'LOOKUP', icon: Search },
-    { href: '/batch', label: 'BATCH_LOOKUP', icon: Layers },
-    { href: '/sources', label: 'DATA_SOURCES', icon: Database },
-    { href: '/docs', label: 'API_DOCS', icon: BookOpen },
+    { href: '/', label: 'LOOKUP', icon: Search },
+    { href: '/keys', label: 'API KEYS', icon: Key },
   ];
 
   return (
     <div className="min-h-[100dvh] flex flex-col md:flex-row bg-background text-foreground relative z-10">
-      <aside className="w-full md:w-60 border-b md:border-b-0 md:border-r border-border bg-card/50 flex flex-col backdrop-blur-sm">
+      <aside className="w-full md:w-52 border-b md:border-b-0 md:border-r border-border bg-card/50 flex flex-col backdrop-blur-sm">
         <div className="p-4 md:p-5 border-b border-border flex items-center gap-3 text-primary">
           <Terminal className="w-5 h-5" />
           <span className="font-mono font-bold tracking-widest text-sm">PHONE_INTEL</span>
@@ -50,12 +46,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
             onClick={logout}
           >
             <Lock className="w-3.5 h-3.5" />
-            LOCK_SYSTEM
+            LOCK
           </Button>
         </div>
       </aside>
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto min-h-0">
-        <div className="max-w-6xl mx-auto space-y-8">
+      <main className="flex-1 p-6 md:p-8 overflow-y-auto">
+        <div className="max-w-6xl mx-auto">
           {children}
         </div>
       </main>
