@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { apiKeysTable } from "@workspace/db/schema";
 
@@ -19,7 +19,7 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
   }
 
   db.update(apiKeysTable)
-    .set({ requestCount: record.requestCount + 1, lastUsedAt: new Date() })
+    .set({ requestCount: sql`${apiKeysTable.requestCount} + 1`, lastUsedAt: new Date() })
     .where(eq(apiKeysTable.id, record.id))
     .catch((err) => {
       req.log.error({ err }, "failed to update api key usage stats");
@@ -29,12 +29,10 @@ export async function requireApiKey(req: Request, res: Response, next: NextFunct
 }
 
 /**
- * Admin auth: accepts EITHER the X-Admin-Secret header (matches ADMIN_API_SECRET env var)
- * OR a valid X-API-Key from the database. This lets the dashboard use the auto-generated
- * API key for admin operations without needing a separate secret workflow.
+ * Admin auth: requires the X-Admin-Secret header to match the ADMIN_API_SECRET env var.
+ * API keys do not grant admin access — admin and customer credentials are separate.
  */
 export async function requireAdminSecret(req: Request, res: Response, next: NextFunction) {
-  // ── Path 1: Admin secret header ──────────────────────────────────────────
   const providedSecret = req.header("x-admin-secret");
   const expectedSecret = process.env.ADMIN_API_SECRET;
 
@@ -43,24 +41,5 @@ export async function requireAdminSecret(req: Request, res: Response, next: Next
     return;
   }
 
-  // ── Path 2: Valid API key (any active key grants admin access in self-hosted mode)
-  const apiKey = req.header("x-api-key");
-  if (apiKey) {
-    const [record] = await db
-      .select()
-      .from(apiKeysTable)
-      .where(eq(apiKeysTable.key, apiKey))
-      .limit(1);
-
-    if (record && record.active) {
-      next();
-      return;
-    }
-  }
-
-  // ── Both failed ───────────────────────────────────────────────────────────
-  res.status(401).json({
-    error: "Invalid admin secret",
-    hint: "Send X-Admin-Secret or a valid X-API-Key header",
-  });
+  res.status(401).json({ error: "Invalid or missing X-Admin-Secret header" });
 }

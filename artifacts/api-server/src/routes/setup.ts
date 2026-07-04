@@ -7,14 +7,11 @@ const router: IRouter = Router();
 
 /**
  * GET /api/setup
- * Returns the current admin secret and (if none exist) creates a default API key.
- * This endpoint has no auth requirement — it is designed for first-run and
- * self-hosted scenarios where the operator needs to discover credentials.
+ * Returns non-sensitive bootstrap info (key count only).
+ * Does NOT expose the admin secret or API key values.
  */
 router.get("/setup", async (_req, res) => {
-  const secret = process.env["ADMIN_API_SECRET"] ?? null;
-
-  // Ensure at least one API key exists
+  // Ensure at least one API key exists on first run
   let keys = await db.select().from(apiKeysTable).limit(10);
   if (keys.length === 0) {
     const defaultKey = `pk_${crypto.randomBytes(24).toString("hex")}`;
@@ -26,8 +23,6 @@ router.get("/setup", async (_req, res) => {
   }
 
   res.json({
-    admin_secret: secret,
-    default_api_key: keys[0]?.key ?? null,
     keys_count: keys.length,
   });
 });

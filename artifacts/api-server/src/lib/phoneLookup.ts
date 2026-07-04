@@ -160,34 +160,33 @@ export async function lookupPhoneNumber(number: string): Promise<PhoneLookupResu
   }
 }
 
-export async function batchLookupPhoneNumbers(numbers: string[]): Promise<BatchLookupResponse> {
-  const results = await Promise.allSettled(
-    numbers.map(async (num): Promise<BatchLookupItem> => {
-      try {
-        const result = await lookupPhoneNumber(num);
-        return { number: num, result };
-      } catch (err) {
-        return {
-          number: num,
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
-    })
-  );
+const BATCH_CONCURRENCY = 10;
 
-  const items: BatchLookupItem[] = results.map((r) =>
-    r.status === "fulfilled" ? r.value : { number: "", error: "Internal error" }
-  );
+export async function batchLookupPhoneNumbers(numbers: string[]): Promise<BatchLookupResponse> {
+  const items: BatchLookupItem[] = new Array(numbers.length);
+
+  // Process in bounded windows to avoid spawning hundreds of Python processes at once
+  for (let i = 0; i < numbers.length; i += BATCH_CONCURRENCY) {
+    const slice = numbers.slice(i, i + BATCH_CONCURRENCY);
+    const settled = await Promise.allSettled(
+      slice.map(async (num): Promise<BatchLookupItem> => {
+        try {
+          const result = await lookupPhoneNumber(num);
+          return { number: num, result };
+        } catch (err) {
+          return { number: num, error: err instanceof Error ? err.message : String(err) };
+        }
+      })
+    );
+    settled.forEach((r, j) => {
+      items[i + j] = r.status === "fulfilled" ? r.value : { number: numbers[i + j]!, error: "Internal error" };
+    });
+  }
 
   const succeeded = items.filter((i) => i.result !== undefined).length;
   const failed = items.filter((i) => i.error !== undefined).length;
 
-  return {
-    results: items,
-    total: items.length,
-    succeeded,
-    failed,
-  };
+  return { results: items, total: items.length, succeeded, failed };
 }
 
 export async function getDataSources(): Promise<DataSourceStatus[]> {
