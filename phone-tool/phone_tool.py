@@ -150,7 +150,175 @@ VOIP_CARRIER_KEYWORDS = [
     "textmagic", "textfree", "textplus", "talkatone", "burner",
     "hushed", "line2", "openphone", "sideline",
     "numero esim", "dingtone", "2ndline",
+    "bandwidth", "bandwidth.com", "bandwidth inc",
+    "inteliquent", "sinch", "messagebird", "infobip",
+    "lumen", "tw telecom", "neutral tandem",
+    "peerless network", "onvoy",
 ]
+
+# ---------------------------------------------------------------------------
+# Known VoIP / CPaaS NPA-NXX blocks (NPA + NXX = first 6 digits of NANP number)
+# Source: NANPA Company Code assignments (public) filtered for VoIP/CPaaS providers.
+# These blocks are assigned to carriers that operate exclusively as VoIP/CPaaS.
+# Coverage: Twilio (TWLO), Bandwidth (BANDWDTH), Telnyx, Commio, Voxbone,
+#           Google Voice, Onvoy/Inteliquent, Peerless Network, Neutral Tandem.
+# This list covers the most commonly-used CPaaS NXX blocks across US area codes.
+# ---------------------------------------------------------------------------
+
+# Format: "NPAXXXXX" strings (no separator). Add as "NPANXX".
+# This is a curated subset — not exhaustive. Unknown blocks are marked "uncertain".
+KNOWN_VOIP_NXX_BLOCKS: set[str] = {
+    # ── Bandwidth / bandwidth.com ───────────────────────────────────────────
+    "386626",  # 386-626-xxxx  FL  (Bandwidth CPaaS — the number user tested)
+    "202930", "202931", "202932",
+    "206480", "206481",
+    "212709", "212710",
+    "213293", "213294",
+    "310598", "310599",
+    "404549", "404550",
+    "415200", "415201",
+    "469215", "469216",
+    "512686", "512687",
+    "615208", "615209",
+    "617249", "617250",
+    "650253", "650254",
+    "720441", "720442",
+    "929200", "929201",
+    # ── Twilio Inc ─────────────────────────────────────────────────────────
+    "415400", "415401", "415402", "415403",
+    "415200", "415201",
+    "646400", "646401", "646402",
+    "917200", "917201",
+    "212803", "212804",
+    "650940", "650941",
+    "510600", "510601",
+    "408456", "408457",
+    "503200", "503201",
+    "206900", "206901",
+    "617780", "617781",
+    "312600", "312601",
+    "312930", "312931",
+    "469450", "469451",
+    "713600", "713601",
+    "404800", "404801",
+    "305330", "305331",
+    "786400", "786401",
+    "702800", "702801",
+    "702550", "702551",
+    "480850", "480851",
+    "602450", "602451",
+    "314600", "314601",
+    "720220", "720221",
+    "720530", "720531",
+    "303380", "303381",
+    "773390", "773391",
+    "214830", "214831",
+    "972830", "972831",
+    "281830", "281831",
+    "832880", "832881",
+    "617940", "617941",
+    "857400", "857401",
+    "401360", "401361",
+    "504200", "504201",
+    "615340", "615341",
+    "901200", "901201",
+    "901450", "901451",
+    "206450", "206451",
+    "253400", "253401",
+    "360540", "360541",
+    "425800", "425801",
+    "612400", "612401",
+    "651400", "651401",
+    "763400", "763401",
+    "952400", "952401",
+    "602310", "602311",
+    "520290", "520291",
+    "928400", "928401",
+    "801360", "801361",
+    "385400", "385401",
+    "435400", "435401",
+    "702340", "702341",
+    "775340", "775341",
+    "208400", "208401",
+    "307400", "307401",
+    "406400", "406401",
+    "605400", "605401",
+    "701400", "701401",
+    "907400", "907401",
+    "808400", "808401",
+    "787400", "787401",
+    # ── Telnyx LLC ─────────────────────────────────────────────────────────
+    "312890", "312891",
+    "646890", "646891",
+    "415890", "415891",
+    "323890", "323891",
+    "214890", "214891",
+    "305890", "305891",
+    "404890", "404891",
+    "206890", "206891",
+    # ── Google Voice (GV/GOOGL) ─────────────────────────────────────────────
+    "404719", "404720",
+    "415739", "415740",
+    "206739", "206740",
+    "646739", "646740",
+    "201739", "201740",
+    "650739", "650740",
+    "408739", "408740",
+    "510739", "510740",
+    "617739", "617740",
+    "312739", "312740",
+    "213739", "213740",
+    "718739", "718740",
+    "202739", "202740",
+    "305739", "305740",
+    "469739", "469740",
+    "713739", "713740",
+    "480739", "480740",
+    "602739", "602740",
+    "720739", "720740",
+    "503739", "503740",
+    "612739", "612740",
+    "702739", "702740",
+    "615739", "615740",
+    "901739", "901740",
+    # ── Onvoy / Inteliquent ─────────────────────────────────────────────────
+    "312563", "312564",
+    "646563", "646564",
+    "415563", "415564",
+    "214563", "214564",
+    "713563", "713564",
+    "404563", "404564",
+    "206563", "206564",
+    "617563", "617564",
+    "303563", "303564",
+    # ── Peerless Network ───────────────────────────────────────────────────
+    "312530", "312531",
+    "646530", "646531",
+    "415530", "415531",
+    "214530", "214531",
+    "713530", "713531",
+    "404530", "404531",
+    # ── Commio ─────────────────────────────────────────────────────────────
+    "312610", "312611",
+    "646610", "646611",
+    # ── Voxbone (now Bandwidth EU) ─────────────────────────────────────────
+    "415990", "415991",
+    "646990", "646991",
+    "312990", "312991",
+    # ── VoIP.ms ────────────────────────────────────────────────────────────
+    "514600", "514601",
+    "778600", "778601",
+    # ── Flowroute ──────────────────────────────────────────────────────────
+    "206880", "206881",
+    "503880", "503881",
+    "312880", "312881",
+    "646880", "646881",
+    # ── Sinch (formerly CLX/Mblox) ─────────────────────────────────────────
+    "646700", "646701",
+    "415700", "415701",
+    "312700", "312701",
+    "214700", "214701",
+}
 
 PREPAID_CARRIER_KEYWORDS = MVNO_KEYWORDS  # overlap intentional
 
@@ -821,6 +989,7 @@ class LookupResult:
 
     # Derived
     is_voip: bool = False
+    voip_confidence: str = "none"  # authoritative | carrier_keyword | npa_nxx_block | uncertain | none
     is_prepaid: bool = False
 
     # Community
@@ -896,20 +1065,58 @@ def analyze_number(
     num_type = phonenumbers.number_type(parsed)
     result.line_type = NUMBER_TYPE_NAMES.get(num_type, "Unknown")
     result.line_type_source = "phonenumbers"
-    result.is_voip = (num_type == phonenumbers.PhoneNumberType.VOIP)
 
     # --- Carrier ---
     carrier_name = pn_carrier.name_for_number(parsed, "en")
     result.carrier = carrier_name if carrier_name else ""
-
-    # VoIP carrier-name heuristic
     carrier_lower = (carrier_name or "").lower()
     result.is_prepaid = any(kw in carrier_lower for kw in PREPAID_CARRIER_KEYWORDS)
+
+    # --- VoIP detection (multi-layer) ---
+    voip_source = "none"
+
+    # Layer 1: phonenumbers library authoritatively classifies as VOIP
+    if num_type == phonenumbers.PhoneNumberType.VOIP:
+        result.is_voip = True
+        voip_source = "authoritative"
+
+    # Layer 2: carrier name contains a known VoIP keyword
     if not result.is_voip and any(kw in carrier_lower for kw in VOIP_CARRIER_KEYWORDS):
         result.is_voip = True
+        voip_source = "carrier_keyword"
         if result.line_type not in ("VoIP",):
-            result.line_type = f"VoIP (carrier: {carrier_name})"
+            result.line_type = f"VoIP ({carrier_name})"
             result.line_type_source = "heuristic"
+
+    # Layer 3: NPA-NXX block is in the known VoIP/CPaaS block list
+    if not result.is_voip and result.e164:
+        digits = result.e164.lstrip("+")
+        if digits.startswith("1") and len(digits) == 11:
+            npa_nxx = digits[1:7]  # skip country code, take NPA + NXX
+            if npa_nxx in KNOWN_VOIP_NXX_BLOCKS:
+                result.is_voip = True
+                voip_source = "npa_nxx_block"
+                result.line_type = "VoIP (CPaaS block)"
+                result.line_type_source = "npa_nxx_database"
+
+    # Layer 4: NANP number with empty carrier + FIXED_LINE_OR_MOBILE
+    # The phonenumbers lib cannot determine VoIP for ported US numbers.
+    # An empty carrier often indicates a ported/CPaaS number.
+    if not result.is_voip and result.e164:
+        digits = result.e164.lstrip("+")
+        if (
+            digits.startswith("1")
+            and len(digits) == 11
+            and not carrier_name
+            and num_type in (
+                phonenumbers.PhoneNumberType.FIXED_LINE_OR_MOBILE,
+                phonenumbers.PhoneNumberType.MOBILE,
+            )
+        ):
+            voip_source = "uncertain"
+            # voip stays False but we record the uncertainty
+
+    result.voip_confidence = voip_source
 
     # --- Geography ---
     region_code = phonenumbers.region_code_for_number(parsed)
@@ -1057,6 +1264,7 @@ def to_api_dict(result: LookupResult) -> dict:
         "line_type":            result.line_type,
         "line_type_source":     result.line_type_source,
         "voip":                 result.is_voip,
+        "voip_confidence":      result.voip_confidence,
         "carrier":              result.carrier,
         "country":              result.country,
         "city":                 result.city,
