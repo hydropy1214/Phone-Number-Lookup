@@ -15,6 +15,22 @@ Data honesty policy:
                                          leaked_online, reassigned, active (precise)
                                          — shown as null/unknown; not faked.
 
+HLR / active check:
+  True HLR (Home Location Register) lookup requires SS7 signaling network
+  access — this is physically impossible without telecom infrastructure or a
+  paid SS7-gateway API. No free open-source tool provides real HLR. This tool
+  shows "active" as a heuristic best-effort estimate, NOT a live network check.
+
+DNC (Do Not Call):
+  The official FTC Do Not Call Registry has no free bulk download — it is only
+  available to paid telemarketer subscribers at donotcall.gov. "dnc" here uses
+  community spam reports as a proxy, not the official registry.
+
+RND (Reassigned Numbers Database):
+  The FCC Reassigned Numbers Database requires a paid subscription at
+  reassigned.us. No free open-source alternative exists. "reassigned" is always
+  null in this tool.
+
 Usage:
     python phone_tool.py +14155552671
     python phone_tool.py +14155552671 --update
@@ -60,8 +76,13 @@ METADATA_PATH = os.path.join(DATA_DIR, "metadata.json")
 REQUEST_TIMEOUT = 20
 USER_AGENT = "phone-tool/2.0 (+offline phone intelligence CLI)"
 
-# Community spam/abuse list sources — all freely downloadable, maintained by the
-# open-source community. Each is tried independently; failures are skipped silently.
+# Community spam/abuse list sources — all freely downloadable, maintained by
+# the open-source community. Verified live as of 2026-07.
+# Sources that no longer exist (404) have been removed:
+#   - nicehash/spam-list         (404)
+#   - sproctor/phone-blacklist   (404)
+#   - StopSpam/phone-numbers     (404)
+#   - TeamDman/nomorobo-blocklist (404)
 SPAM_SOURCES = {
     "jwoertink_blocked": (
         "https://raw.githubusercontent.com/jwoertink/blocked-numbers/master/list.csv",
@@ -70,30 +91,6 @@ SPAM_SOURCES = {
     "oros42_blacklist": (
         "https://raw.githubusercontent.com/Oros42/phone-blacklist/master/blacklist.csv",
         "oros42_blacklist.csv",
-    ),
-    "nicehash_spam": (
-        "https://raw.githubusercontent.com/nicehash/spam-list/master/spam-calls.txt",
-        "nicehash_spam.txt",
-    ),
-    "martenson_spam": (
-        "https://raw.githubusercontent.com/martenson/disposable-email-domains/master/disposable_email_blocklist.conf",
-        None,  # skip — email domains, not phone numbers
-    ),
-    "telecom_abuse": (
-        "https://raw.githubusercontent.com/sproctor/phone-blacklist/master/numbers.txt",
-        "sproctor_blacklist.txt",
-    ),
-    "robocall_block": (
-        "https://raw.githubusercontent.com/StopSpam/phone-numbers/master/numbers.txt",
-        "stopspam_numbers.txt",
-    ),
-    "community_reports": (
-        "https://raw.githubusercontent.com/TeamDman/nomorobo-blocklist/master/blocklist.txt",
-        "nomorobo_blocklist.txt",
-    ),
-    "abuse_ch_phones": (
-        "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset",
-        None,  # skip — IP ranges, not phone numbers
     ),
 }
 
@@ -135,22 +132,47 @@ HIGH_RISK_AREA_CODES = {
     "208": ("Idaho", 5),
 }
 
-# Known prepaid / MVN carrier keywords for best-effort prepaid detection
+# Known prepaid / MVNO carrier keywords for best-effort prepaid detection.
+# Source: publicly known carrier trade names.
 PREPAID_CARRIER_KEYWORDS = [
     "boost", "cricket", "metro", "tracfone", "mint mobile", "straight talk",
     "simple mobile", "net10", "total wireless", "h2o", "ultra mobile",
     "google fi", "visible", "red pocket", "consumer cellular", "page plus",
     "virgin mobile", "lyca", "ptel", "safelink", "truphone", "telcel",
     "t-mobile prepaid", "at&t prepaid", "verizon prepaid", "prepaid",
-    "mvno", "freedom mobile", "public mobile", "koodo",
+    "mvno", "freedom mobile", "public mobile", "koodo", "chatr",
+    "ting", "republic wireless", "wing", "textnow", "unreal mobile",
+    "tello", "pure talk", "us mobile", "reach mobile", "gen mobile",
 ]
 
-# Recognized VOIP carrier name fragments
+# VoIP carrier name fragments — extended to cover all major VoIP providers.
+# These supplement the authoritative phonenumbers line-type detection.
+# When a carrier name contains any of these strings, the number is VoIP.
 VOIP_CARRIER_KEYWORDS = [
-    "voip", "vonage", "magicjack", "google voice", "lingo", "ooma",
-    "ring central", "ringcentral", "twilio", "bandwidth", "bandwidth.com",
-    "level 3", "level3", "paetec", "cbeyond", "cavalier",
-    "intermedia", "8x8", "dialpad", "nextiva",
+    # Generics
+    "voip", "voice over ip", "virtual", "virtual number", "virtual phone",
+    # Major US VoIP providers
+    "vonage", "magicjack", "google voice", "lingo", "ooma",
+    "ring central", "ringcentral",
+    # CPaaS / programmable voice (used by businesses and robocallers alike)
+    "twilio", "bandwidth", "bandwidth.com",
+    "signalwire", "plivo", "nexmo", "vonage api",
+    "telnyx", "voxbone", "commio", "didlogic",
+    "flowroute", "voip innovations", "voip.ms",
+    "ip communications", "level 3", "level3",
+    "lumen", "centurylink voip", "qwest voip",
+    # UCaaS / business VoIP
+    "8x8", "dialpad", "nextiva", "intermedia",
+    "cbeyond", "cavalier", "paetec",
+    "zoom phone", "microsoft teams direct",
+    "cisco webex calling", "avaya cloud",
+    "jive", "grasshopper", "google workspace voice",
+    # International / MVNO VoIP
+    "skype", "whatsapp", "viber out",
+    "textmagic", "iphone voip", "textfree",
+    "textplus", "talkatone", "burner",
+    "hushed", "line2", "openphone", "sideline",
+    "numero esim", "dingtone", "2ndline",
 ]
 
 NUMBER_TYPE_NAMES = {
@@ -331,7 +353,6 @@ def _check_suspicious_patterns(e164: str) -> list[tuple[str, int]]:
         area_code = digits[1:4]
         exchange = digits[4:7]
         subscriber = digits[7:11]
-        national = digits[1:]
 
         # Hollywood / fictitious numbers: NXX 555-01xx
         if exchange == "555" and subscriber.startswith("0"):
@@ -361,6 +382,10 @@ def _check_suspicious_patterns(e164: str) -> list[tuple[str, int]]:
         if subscriber in ("0000", "9999"):
             hits.append((f"Subscriber number {subscriber} is typically unassigned", 15))
 
+        # Repeating exchange+subscriber pattern (e.g. +12025555555)
+        if len(set(exchange + subscriber)) == 1:
+            hits.append(("All-same-digit 7-digit national number", 25))
+
     else:
         # Non-NANP: all-same digits in last 4
         national_part = digits[2:] if len(digits) > 6 else digits
@@ -378,6 +403,9 @@ def _check_suspicious_patterns(e164: str) -> list[tuple[str, int]]:
 class LookupResult:
     # --- Input ---
     input_number: str
+
+    # --- Parse error (set when phonenumbers cannot parse the input) ---
+    parse_error: Optional[str] = None
 
     # --- Authoritative (phonenumbers library) ---
     valid: bool = False
@@ -404,7 +432,7 @@ class LookupResult:
     fraud_score_int: int = 0
     fraud_reasons: list = field(default_factory=list)
     is_risky: bool = False
-    is_active_estimate: bool = True  # best-effort only
+    is_active_estimate: bool = True  # best-effort only — NOT a live HLR check
 
     # --- Unavailable offline (shown as None/unknown) ---
     # name, associated_emails, user_activity, leaked_online, reassigned:
@@ -424,6 +452,8 @@ def analyze_number(
         default_region = None if raw_number.strip().startswith("+") else "US"
         parsed = phonenumbers.parse(raw_number, default_region)
     except phonenumbers.NumberParseException as e:
+        # Record the parse error; the caller decides how to surface it.
+        result.parse_error = str(e)
         result.fraud_reasons.append(f"Parse error: {e}")
         result.fraud_score_int = 30
         return result
@@ -432,10 +462,12 @@ def analyze_number(
     result.valid = phonenumbers.is_valid_number(parsed)
     result.e164 = phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
 
-    # --- Line type (authoritative) ---
+    # --- Line type (authoritative via Google libphonenumber) ---
+    # This is the most reliable offline signal for VoIP vs mobile vs landline.
+    # The library encodes known VoIP number ranges directly.
     num_type = phonenumbers.number_type(parsed)
     result.line_type = NUMBER_TYPE_NAMES.get(num_type, "Unknown")
-    result.is_voip = num_type == phonenumbers.PhoneNumberType.VOIP
+    result.is_voip = (num_type == phonenumbers.PhoneNumberType.VOIP)
 
     # --- Carrier (authoritative for international; often empty for US mobile
     #     due to NANP number portability — carrier cannot be determined from
@@ -447,9 +479,15 @@ def analyze_number(
     carrier_lower = (carrier_name or "").lower()
     result.is_prepaid = any(kw in carrier_lower for kw in PREPAID_CARRIER_KEYWORDS)
 
-    # If carrier name contains VOIP keywords, upgrade voip flag
+    # --- VoIP carrier-name heuristic (supplements libphonenumber line type) ---
+    # If carrier name contains any known VoIP provider keyword, flag as VoIP.
+    # This catches cases where libphonenumber classified the range as "Fixed Line"
+    # but the carrier name reveals it is actually a VoIP/CPaaS provider.
     if not result.is_voip and any(kw in carrier_lower for kw in VOIP_CARRIER_KEYWORDS):
         result.is_voip = True
+        # If line_type wasn't already VoIP, update it to reflect the finding
+        if result.line_type not in ("VoIP",):
+            result.line_type = f"VoIP (via carrier: {carrier_name})"
 
     # --- Geography (authoritative) ---
     region_code = phonenumbers.region_code_for_number(parsed)
@@ -464,7 +502,7 @@ def analyze_number(
         else:
             result.region = geo
             result.city = ""
-    
+
     # --- Timezones (authoritative) ---
     try:
         result.timezones = list(pn_timezone.time_zones_for_number(parsed))
@@ -531,7 +569,8 @@ def analyze_number(
     )
 
     # Active: best-effort heuristic — valid format + no major red flags.
-    # NOT the same as a live HLR "reachable" check.
+    # This is NOT a live HLR check. True HLR requires SS7 network access
+    # which is not available without a paid telecom API.
     result.is_active_estimate = result.valid and not result.is_spam and result.fraud_score_int < 60
 
     return result
@@ -549,7 +588,7 @@ def to_api_dict(result: LookupResult) -> dict:
     as spam are often Do-Not-Call violations, but this is not the FTC registry.
     """
     return {
-        # Authoritative (phonenumbers library)
+        # Authoritative (Google libphonenumber via phonenumbers)
         "valid":             result.valid,
         "line_type":         result.line_type,
         "voip":              result.is_voip,
@@ -569,19 +608,23 @@ def to_api_dict(result: LookupResult) -> dict:
         "prepaid":           result.is_prepaid,
         "risky":             result.is_risky,
 
-        # DNC: community spam list proxy.
+        # DNC: community spam list proxy (NOT the official FTC registry).
         # A number in community abuse reports is likely a DNC violator, but
-        # this is NOT the official FTC Do Not Call Registry (requires paid
-        # subscription). Treat as "reported" not "verified registered".
+        # the real FTC Do Not Call Registry requires a paid subscription —
+        # it has no free bulk download. "dnc" here = community-reported proxy.
         "dnc":               result.is_spam,
         "dnc_source":        "community_spam_proxy" if result.is_spam else "none",
 
-        # Unavailable offline — never fabricated
+        # Unavailable offline — never fabricated:
+        # HLR (live active/reachable) — requires SS7 / paid telecom API
+        # CNAM (caller name)          — requires carrier CNAM lookup
+        # RND (reassigned)            — requires FCC paid subscription
+        # Data enrichment             — requires breach/enrichment database
         "name":              None,   # requires CNAM carrier lookup
         "associated_emails": [],     # requires data enrichment service
         "user_activity":     None,   # requires live HLR/SS7
         "leaked_online":     None,   # requires breach database (e.g. HIBP)
-        "reassigned":        None,   # requires FCC RND subscription
+        "reassigned":        None,   # requires FCC RND paid subscription
 
         # Pattern analysis detail
         "pattern_flags":     [r for r, _ in result.pattern_risks],
@@ -601,29 +644,29 @@ def print_result_table(result: LookupResult):
         return str(val)
 
     rows = [
-        ("Input",           result.input_number),
-        ("E.164",           result.e164 or "unparseable"),
-        ("Valid",           fmt(api["valid"])),
-        ("Active (est.)",   fmt(api["active"]) + " [heuristic — not live HLR]"),
-        ("Line Type",       api["line_type"]),
-        ("VoIP",            fmt(api["voip"])),
-        ("Carrier",         api["carrier"] or "Unknown (US mobile portability)"),
-        ("Prepaid",         fmt(api["prepaid"]) + " [heuristic]"),
-        ("Country",         api["country"] or "Unknown"),
-        ("City",            api["city"] or "Unknown"),
-        ("Region",          api["region"] or "Unknown"),
-        ("Timezones",       fmt(api["timezones"])),
-        ("Fraud Score",     f"{api['fraud_score']}/100"),
-        ("Recent Abuse",    fmt(api["recent_abuse"]) + " [community dataset]"),
-        ("Spammer",         fmt(api["spammer"]) + " [community dataset]"),
-        ("Risky",           fmt(api["risky"])),
-        ("DNC",             fmt(api["dnc"]) + " [community proxy — not FTC registry]"),
-        ("Pattern Flags",   fmt(api["pattern_flags"])),
-        ("Name",            "N/A (requires CNAM lookup)"),
-        ("Emails",          "N/A (requires data enrichment)"),
-        ("User Activity",   "N/A (requires live HLR)"),
-        ("Leaked Online",   "N/A (requires breach database)"),
-        ("Reassigned",      "N/A (requires FCC RND subscription)"),
+        ("Input",            result.input_number),
+        ("E.164",            result.e164 or "unparseable"),
+        ("Valid",            fmt(api["valid"])),
+        ("Active (est.)",    fmt(api["active"]) + " [heuristic — NOT a live HLR check]"),
+        ("Line Type",        api["line_type"]),
+        ("VoIP",             fmt(api["voip"])),
+        ("Carrier",          api["carrier"] or "Unknown (US mobile portability prevents offline carrier ID)"),
+        ("Prepaid",          fmt(api["prepaid"]) + " [heuristic from carrier name]"),
+        ("Country",          api["country"] or "Unknown"),
+        ("City",             api["city"] or "Unknown"),
+        ("Region",           api["region"] or "Unknown"),
+        ("Timezones",        fmt(api["timezones"])),
+        ("Fraud Score",      f"{api['fraud_score']}/100"),
+        ("Recent Abuse",     fmt(api["recent_abuse"]) + " [community dataset]"),
+        ("Spammer",          fmt(api["spammer"]) + " [community dataset]"),
+        ("Risky",            fmt(api["risky"])),
+        ("DNC",              fmt(api["dnc"]) + " [community proxy — NOT FTC registry]"),
+        ("Pattern Flags",    fmt(api["pattern_flags"])),
+        ("Name (CNAM)",      "N/A — requires live CNAM carrier lookup"),
+        ("Emails",           "N/A — requires data enrichment service"),
+        ("Active (HLR)",     "N/A — true HLR requires SS7 / paid telecom API"),
+        ("Leaked Online",    "N/A — requires breach database (e.g. HIBP)"),
+        ("Reassigned (RND)", "N/A — FCC RND requires paid subscription"),
     ]
 
     w = max(len(r[0]) for r in rows) + 2
@@ -689,9 +732,18 @@ def main(argv=None):
 
     result = analyze_number(args.number, spam_set)
 
+    # In quiet/programmatic mode: surface parse errors as {"error": ...} with
+    # exit code 1 so the API server can return HTTP 400 instead of 200.
     if quiet:
+        if result.parse_error:
+            print(json.dumps({"error": f"Invalid phone number: {result.parse_error}"}))
+            return 1
         print(json.dumps(to_api_dict(result)))
         return 0
+
+    if result.parse_error:
+        print(f"\nERROR: Could not parse number: {result.parse_error}")
+        return 1
 
     print_result_table(result)
 
