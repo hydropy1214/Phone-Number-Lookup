@@ -3,12 +3,49 @@ import path from "node:path";
 
 const PHONE_TOOL_PATH = path.resolve(process.cwd(), "..", "..", "phone-tool", "phone_tool.py");
 const PYTHON_BIN = process.env.PHONE_TOOL_PYTHON || "python3";
-const TIMEOUT_MS = 30_000; // longer: first run downloads datasets
+const TIMEOUT_MS = 30_000;
+
+export interface HlrStatus {
+  method: string;
+  reachable_estimate: boolean;
+  confidence: string;
+  signals: string[];
+  disclaimer: string;
+}
+
+export interface CarrierType {
+  type: string;
+  confidence: string;
+  description: string;
+  matched_keyword?: string | null;
+}
+
+export interface PortedEstimate {
+  method: string;
+  ported_estimate: boolean | null;
+  confidence: string;
+  signals: string[];
+  disclaimer: string;
+}
+
+export interface RndRisk {
+  method: string;
+  risk_level: string;
+  risk_score?: number | null;
+  confidence: string;
+  risk_factors: string[];
+  disclaimer: string;
+}
 
 export interface PhoneLookupResult {
-  // Authoritative (phonenumbers library)
+  // Authoritative
   valid: boolean;
+  possible: boolean;
+  e164: string | null;
+  national_format: string | null;
+  international_format: string | null;
   line_type: string;
+  line_type_source: string;
   voip: boolean;
   carrier: string;
   country: string;
@@ -16,20 +53,29 @@ export interface PhoneLookupResult {
   region: string;
   timezones: string[];
 
-  // Heuristic / community-data
+  // Heuristic / community
   active: boolean;
   fraud_score: number;
   fraud_reasons: string[];
   recent_abuse: boolean;
   spammer: boolean;
   spam: boolean;
+  spam_source_count: number;
+  spam_sources: string[];
   prepaid: boolean;
   risky: boolean;
   dnc: boolean;
   dnc_source: string;
+  dnc_source_count: number;
   pattern_flags: string[];
 
-  // Unavailable offline — null means "cannot determine without live carrier/breach data"
+  // Structured heuristic assessments
+  hlr_status: HlrStatus;
+  carrier_type: CarrierType;
+  ported_estimate: PortedEstimate;
+  rnd_risk: RndRisk;
+
+  // Unavailable offline (always null/empty)
   name: string | null;
   associated_emails: string[];
   user_activity: string | null;
@@ -37,11 +83,34 @@ export interface PhoneLookupResult {
   reassigned: boolean | null;
 }
 
+export interface BatchLookupItem {
+  number: string;
+  result?: PhoneLookupResult;
+  error?: string;
+}
+
+export interface BatchLookupResponse {
+  results: BatchLookupItem[];
+  total: number;
+  succeeded: number;
+  failed: number;
+}
+
+export interface DataSourceStatus {
+  id: string;
+  label: string;
+  url: string;
+  filename: string;
+  present: boolean;
+  size_bytes: number;
+  last_downloaded: string | null;
+}
+
 export class PhoneLookupError extends Error {}
 
-export function lookupPhoneNumber(number: string): Promise<PhoneLookupResult> {
+function spawnLookup(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(PYTHON_BIN, [PHONE_TOOL_PATH, number, "--quiet"], {
+    const child = spawn(PYTHON_BIN, [PHONE_TOOL_PATH, ...args], {
       cwd: path.dirname(PHONE_TOOL_PATH),
     });
 
@@ -50,7 +119,7 @@ export function lookupPhoneNumber(number: string): Promise<PhoneLookupResult> {
 
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
-      reject(new PhoneLookupError("Phone lookup timed out (datasets may be downloading on first run)"));
+      reject(new PhoneLookupError("Phone tool timed out"));
     }, TIMEOUT_MS);
 
     child.stdout.on("data", (chunk) => { stdout += chunk.toString(); });
@@ -65,24 +134,67 @@ export function lookupPhoneNumber(number: string): Promise<PhoneLookupResult> {
       clearTimeout(timer);
       if (code !== 0) {
         reject(new PhoneLookupError(
-          `phone_tool.py exited with code ${code}: ${stderr || stdout}`.slice(0, 500)
+          `phone_tool.py exited with code ${code}: ${(stderr || stdout).slice(0, 500)}`
         ));
         return;
       }
-      try {
-        // Take the last non-empty line (quiet mode prints exactly one JSON line)
-        const lastLine = stdout.trim().split("\n").filter(Boolean).pop() ?? "";
-        const parsed = JSON.parse(lastLine) as PhoneLookupResult & { error?: string };
-        if (parsed.error) {
-          reject(new PhoneLookupError(parsed.error));
-          return;
-        }
-        resolve(parsed);
-      } catch (err) {
-        reject(new PhoneLookupError(
-          `Could not parse phone_tool.py output: ${err instanceof Error ? err.message : String(err)}`
-        ));
-      }
+      resolve(stdout);
     });
   });
+}
+
+export async function lookupPhoneNumber(number: string): Promise<PhoneLookupResult> {
+  const stdout = await spawnLookup([number, "--quiet"]);
+  const lastLine = stdout.trim().split("\n").filter(Boolean).pop() ?? "";
+  try {
+    const parsed = JSON.parse(lastLine) as PhoneLookupResult & { error?: string };
+    if (parsed.error) {
+      throw new PhoneLookupError(parsed.error);
+    }
+    return parsed;
+  } catch (err) {
+    if (err instanceof PhoneLookupError) throw err;
+    throw new PhoneLookupError(
+      `Could not parse phone_tool.py output: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+}
+
+export async function batchLookupPhoneNumbers(numbers: string[]): Promise<BatchLookupResponse> {
+  const results = await Promise.allSettled(
+    numbers.map(async (num): Promise<BatchLookupItem> => {
+      try {
+        const result = await lookupPhoneNumber(num);
+        return { number: num, result };
+      } catch (err) {
+        return {
+          number: num,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    })
+  );
+
+  const items: BatchLookupItem[] = results.map((r) =>
+    r.status === "fulfilled" ? r.value : { number: "", error: "Internal error" }
+  );
+
+  const succeeded = items.filter((i) => i.result !== undefined).length;
+  const failed = items.filter((i) => i.error !== undefined).length;
+
+  return {
+    results: items,
+    total: items.length,
+    succeeded,
+    failed,
+  };
+}
+
+export async function getDataSources(): Promise<DataSourceStatus[]> {
+  const stdout = await spawnLookup(["--sources"]);
+  try {
+    return JSON.parse(stdout.trim()) as DataSourceStatus[];
+  } catch {
+    return [];
+  }
 }

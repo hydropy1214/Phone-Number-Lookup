@@ -1,7 +1,6 @@
 import axios from 'axios';
 
 export function setAdminSecret(secret: string) {
-  // If axios is used by any chance
   axios.defaults.headers.common['X-Admin-Secret'] = secret;
   localStorage.setItem('admin_secret', secret);
 }
@@ -24,12 +23,25 @@ export function getApiKey(): string | null {
   return localStorage.getItem('api_key');
 }
 
+/**
+ * Returns the base URL for the /api server, preserving the Replit proxy
+ * path prefix if present. Batch and sources pages use raw fetch (not the
+ * generated client), so they need the correct prefix.
+ */
+export function getApiBaseUrl(): string {
+  // BASE_URL comes from Vite and includes the artifact path prefix.
+  // e.g. "/" in dev, or "/dashboard/" in a sub-path deployment.
+  // The API server is mounted at the same origin under /api.
+  const base = import.meta.env.BASE_URL || '/';
+  // Strip trailing slash, then append /api
+  return base.replace(/\/$/, '') + '/api';
+}
+
 // Intercept fetch — only inject credentials on same-origin /api/* requests
 const originalFetch = window.fetch;
 window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = input instanceof Request ? input.url : String(input);
 
-  // Only attach headers to same-origin /api paths to prevent credential leakage
   const isSameOrigin = url.startsWith('/') || url.startsWith(window.location.origin);
   const isApiPath = url.includes('/api/');
 
